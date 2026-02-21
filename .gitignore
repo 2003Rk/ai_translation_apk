@@ -1,0 +1,18 @@
+# Gradle cache & build outputs
+.gradle/
+build/
+app/build/
+
+# Android Studio / IntelliJ
+*.iml
+.idea/
+local.properties
+*.DS_Store
+
+# Signing keys — NEVER commit these
+*.jks
+*.keystore
+
+# Release APKs
+*.apk
+*.aab

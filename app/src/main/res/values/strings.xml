@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Bootstrap Agent</string>
+    <string name="notification_channel_id">bootstrap_agent_channel</string>
+    <string name="notification_channel_name">Bootstrap Agent Service</string>
+    <string name="notification_title">Bootstrap Agent</string>
+    <string name="notification_text">Monitoring for updates…</string>
+</resources>

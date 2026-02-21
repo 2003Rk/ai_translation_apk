@@ -1,0 +1,63 @@
+plugins {
+    id 'com.android.application'
+    id 'kotlin-android'
+}
+
+android {
+    compileSdkVersion 27
+    buildToolsVersion "27.0.3"
+
+    defaultConfig {
+        applicationId "com.bootstrap.agent"
+        minSdkVersion 26          // Android 8.0 minimum
+        targetSdkVersion 27       // Android 8.1 target
+        versionCode 1
+        versionName "1.0.0"
+
+        // Keep APK lean — no unused resources
+        resConfigs "en"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
+                    'proguard-rules.pro'
+        }
+        debug {
+            minifyEnabled false
+            debuggable true
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+    // Keep APK well under 10 MB
+    packagingOptions {
+        exclude 'META-INF/*.kotlin_module'
+        exclude 'META-INF/DEPENDENCIES'
+        exclude 'META-INF/LICENSE'
+        exclude 'META-INF/NOTICE'
+    }
+}
+
+dependencies {
+    // Kotlin stdlib (jar variant — smaller than -jdk8 on older APIs)
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+
+    // Coroutines — lightweight async; no Rx, no heavy threading libraries
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+
+    // Core KTX utilities (very small, only brings extension functions)
+    implementation 'androidx.core:core-ktx:1.9.0'
+
+    // No Retrofit, no OkHttp, no Gson — using HttpURLConnection + org.json (built-in)
+}

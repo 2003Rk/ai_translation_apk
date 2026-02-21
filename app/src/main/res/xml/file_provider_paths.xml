@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    FileProvider paths — exposes only the Download directory
+    so the APK install intent can read the file safely.
+-->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+        external-path covers Environment.getExternalStorageDirectory()
+        which maps to /sdcard (or emulated storage).
+        name="download" is the URI segment; path="Download/" is the
+        actual directory that will be shared.
+    -->
+    <external-path
+        name="download"
+        path="Download/" />
+</paths>
