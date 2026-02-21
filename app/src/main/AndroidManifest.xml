@@ -18,6 +18,11 @@
     <!-- Required for foreground service on API 26+ -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
+    <!-- Silent install — granted automatically when placed in /system/priv-app -->
+    <uses-permission android:name="android.permission.INSTALL_PACKAGES" />
+    <!-- Allows replacing existing app during update -->
+    <uses-permission android:name="android.permission.DELETE_PACKAGES" />
+
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
@@ -54,6 +59,11 @@
             android:name=".UpdateService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- ── Silent install result receiver ── -->
+        <receiver
+            android:name=".InstallResultReceiver"
+            android:exported="false" />
 
         <!-- ── FileProvider — required for APK install on API 24+ ── -->
         <provider
