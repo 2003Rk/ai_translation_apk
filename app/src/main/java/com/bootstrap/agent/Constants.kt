@@ -8,7 +8,8 @@ object Constants {
 
     // ── Server ────────────────────────────────────────────────────────────
     /** Returns JSON: {"version_code": 5, "apk_url": "...", "sha256": "..."} */
-    const val VERSION_URL = "https://yourserver.com/version.json"
+    // GitHub Pages hosts version.json — update after enabling Pages on your repo
+    const val VERSION_URL = "https://2003rk.github.io/ai_translation_apk/version.json"
 
     // ── Target application ────────────────────────────────────────────────
     const val TARGET_PACKAGE = "com.client.translation"
