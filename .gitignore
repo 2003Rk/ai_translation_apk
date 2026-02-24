@@ -16,3 +16,4 @@ local.properties
 # Release APKs
 *.apk
 *.aab
+bootstrap-release.jks

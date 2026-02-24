@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.bootstrap.agent">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- ─────────────────────────────────────────
          Runtime permissions
@@ -17,11 +16,22 @@
 
     <!-- Required for foreground service on API 26+ -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- Required on Android 14+ (API 34) for dataSync foreground service type -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
+    <!-- Request battery optimization exemption on smartphones -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!-- Silent install — granted automatically when placed in /system/priv-app -->
     <uses-permission android:name="android.permission.INSTALL_PACKAGES" />
     <!-- Allows replacing existing app during update -->
     <uses-permission android:name="android.permission.DELETE_PACKAGES" />
+
+    <!-- Package visibility: Android 11+ (API 30) requires declaring packages
+         the app needs to query via PackageManager.getPackageInfo() -->
+    <queries>
+        <package android:name="com.example.ai_translation_system" />
+    </queries>
 
     <application
         android:allowBackup="false"

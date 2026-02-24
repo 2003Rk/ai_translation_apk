@@ -30,4 +30,48 @@
         android:textSize="13sp"
         android:gravity="center" />
 
+    <!-- Download progress section — hidden until a download starts -->
+    <LinearLayout
+        android:id="@+id/downloadProgressContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="28dp"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tvDownloadLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Downloading update…"
+            android:textColor="#4FC3F7"
+            android:textSize="14sp"
+            android:gravity="center" />
+
+        <ProgressBar
+            android:id="@+id/downloadProgressBar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:max="100"
+            android:progress="0"
+            android:progressTint="#4FC3F7"
+            android:progressBackgroundTint="#333333" />
+
+        <TextView
+            android:id="@+id/tvDownloadPercent"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="0%"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:gravity="center" />
+
+    </LinearLayout>
+
 </LinearLayout>

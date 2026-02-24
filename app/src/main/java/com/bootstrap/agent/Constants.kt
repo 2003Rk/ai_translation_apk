@@ -12,7 +12,7 @@ object Constants {
     const val VERSION_URL = "https://2003rk.github.io/ai_translation_apk/version.json"
 
     // ── Target application ────────────────────────────────────────────────
-    const val TARGET_PACKAGE = "com.client.translation"
+    const val TARGET_PACKAGE = "com.example.ai_translation_system"
 
     // ── Download ──────────────────────────────────────────────────────────
     const val APK_FILE_NAME = "translation.apk"
@@ -30,7 +30,16 @@ object Constants {
     // ── Notifications ─────────────────────────────────────────────────────
     const val NOTIFICATION_CHANNEL_ID = "bootstrap_agent_channel"
     const val NOTIFICATION_ID = 1001
-
+    /** Separate high-priority channel for "Tap to install" on smartphones. */
+    const val INSTALL_CHANNEL_ID = "bootstrap_install_channel"
+    const val INSTALL_NOTIFICATION_ID = 1002
     // ── Logging ───────────────────────────────────────────────────────────
     const val TAG = "BootstrapAgent"
+
+    // ── Broadcast actions (download progress → UI) ────────────────────────
+    const val ACTION_DOWNLOAD_PROGRESS = "com.bootstrap.agent.DOWNLOAD_PROGRESS"
+    const val EXTRA_PROGRESS_PERCENT = "progress_percent"
+    const val EXTRA_PROGRESS_BYTES = "progress_bytes"
+    const val EXTRA_PROGRESS_TOTAL = "progress_total"
+    const val EXTRA_PROGRESS_STATUS = "progress_status"  // "started", "downloading", "done", "failed"
 }

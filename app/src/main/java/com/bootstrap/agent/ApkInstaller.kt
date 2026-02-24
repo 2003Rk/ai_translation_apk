@@ -89,7 +89,7 @@ class ApkInstaller(context: Context) {
                     sessionId,
                     intent,
                     android.app.PendingIntent.FLAG_UPDATE_CURRENT or
-                            android.app.PendingIntent.FLAG_IMMUTABLE
+                            android.app.PendingIntent.FLAG_MUTABLE
                 )
                 s.commit(pendingIntent.intentSender)
             }
@@ -118,14 +118,41 @@ class ApkInstaller(context: Context) {
                 "${appContext.packageName}.fileprovider",
                 apkFile
             )
+
+            // Use ACTION_INSTALL_PACKAGE on API 21+ for better compatibility
+            // with modern Android versions that restrict ACTION_VIEW for APKs.
+            val installIntent = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
+                data = apkUri
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
+                putExtra(Intent.EXTRA_RETURN_RESULT, false)
+            }
+            appContext.startActivity(installIntent)
+            Log.i(Constants.TAG, "ApkInstaller: dialog install intent dispatched")
+            true
+        } catch (e: Exception) {
+            Log.w(Constants.TAG, "ApkInstaller: ACTION_INSTALL_PACKAGE failed, trying ACTION_VIEW: ${e.message}")
+            // Fallback to ACTION_VIEW for older devices
+            tryActionViewInstall(apkFile)
+        }
+    }
+
+    private fun tryActionViewInstall(apkFile: File): Boolean {
+        return try {
+            val apkUri: Uri = FileProvider.getUriForFile(
+                appContext,
+                "${appContext.packageName}.fileprovider",
+                apkFile
+            )
             val installIntent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(apkUri, "application/vnd.android.package-archive")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
             appContext.startActivity(installIntent)
-            Log.i(Constants.TAG, "ApkInstaller: dialog install intent dispatched")
+            Log.i(Constants.TAG, "ApkInstaller: ACTION_VIEW install intent dispatched")
             true
         } catch (e: Exception) {
             Log.e(Constants.TAG, "ApkInstaller: dialog install failed: ${e.message}", e)

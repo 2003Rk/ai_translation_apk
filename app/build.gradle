@@ -4,13 +4,14 @@ plugins {
 }
 
 android {
-    compileSdkVersion 27
-    buildToolsVersion "27.0.3"
+    namespace "com.bootstrap.agent"
+    compileSdk 35
+    buildToolsVersion "35.0.0"
 
     defaultConfig {
         applicationId "com.bootstrap.agent"
-        minSdkVersion 26          // Android 8.0 minimum
-        targetSdkVersion 27       // Android 8.1 target
+        minSdk 26                 // Android 8.0 minimum
+        targetSdk 35
         versionCode 1
         versionName "1.0.0"
 
@@ -18,8 +19,18 @@ android {
         resConfigs "en"
     }
 
+    signingConfigs {
+        release {
+            storeFile file("../bootstrap-release.jks")
+            storePassword "bootstrap123"
+            keyAlias "bootstrap_agent"
+            keyPassword "bootstrap123"
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig signingConfigs.release
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
@@ -36,16 +47,20 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
     }
 
+    buildFeatures {
+        buildConfig true
+    }
+
     kotlinOptions {
         jvmTarget = '1.8'
     }
 
     // Keep APK well under 10 MB
-    packagingOptions {
-        exclude 'META-INF/*.kotlin_module'
-        exclude 'META-INF/DEPENDENCIES'
-        exclude 'META-INF/LICENSE'
-        exclude 'META-INF/NOTICE'
+    packaging {
+        resources {
+            excludes += ['META-INF/*.kotlin_module', 'META-INF/DEPENDENCIES',
+                         'META-INF/LICENSE', 'META-INF/NOTICE']
+        }
     }
 }
 

@@ -3,13 +3,16 @@ package com.bootstrap.agent
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.FileProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -44,6 +47,12 @@ import java.net.URL
  *   - The scope is cancelled in [onDestroy] — no leaking coroutines.
  *   - Heavy helpers ([ApkDownloader], [ApkInstaller]) are created once and
  *     hold only Application context references.
+ *
+ * Deployment modes (auto-detected):
+ *   - **Factory / embedded device** (system app): Wi-Fi only, silent install,
+ *     no user interaction required.
+ *   - **Normal smartphone** (sideloaded): Any network (Wi-Fi + mobile data),
+ *     dialog install with a tappable notification prompting the user.
  */
 class UpdateService : Service() {
 
@@ -55,6 +64,9 @@ class UpdateService : Service() {
     private lateinit var wifiMonitor: WifiMonitor
     private lateinit var apkDownloader: ApkDownloader
     private lateinit var apkInstaller: ApkInstaller
+
+    /** true = factory/embedded device (system app), false = normal smartphone */
+    private var isFactoryMode = false
 
     // Track the running agent loop so we can cancel it if needed
     private var agentJob: Job? = null
@@ -68,7 +80,10 @@ class UpdateService : Service() {
         wifiMonitor = WifiMonitor(this)
         apkDownloader = ApkDownloader(this)
         apkInstaller = ApkInstaller(this)
+        isFactoryMode = wifiMonitor.isSystemApp()
+        Log.i(Constants.TAG, "UpdateService: mode=${if (isFactoryMode) "FACTORY" else "SMARTPHONE"}")
         createNotificationChannel()
+        createInstallNotificationChannel()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -107,14 +122,18 @@ class UpdateService : Service() {
     private suspend fun runAgentLoop() {
         Log.i(Constants.TAG, "UpdateService: agent loop started")
 
-        // ── Step 1: Wait for Wi-Fi ────────────────────────────────────────
-        while (!wifiMonitor.isWifiConnected()) {
-            Log.i(Constants.TAG, "UpdateService: no Wi-Fi — retrying in ${Constants.WIFI_RETRY_INTERVAL_MS / 1000}s")
-            updateNotification("Waiting for Wi-Fi connection…")
+        // ── Step 1: Wait for connectivity ───────────────────────────────────
+        // Factory mode: wait for Wi-Fi only
+        // Smartphone mode: accept any internet (Wi-Fi or mobile data)
+        val waitLabel = if (isFactoryMode) "Wi-Fi" else "internet"
+        while (!wifiMonitor.isConnected()) {
+            Log.i(Constants.TAG, "UpdateService: no $waitLabel — retrying in ${Constants.WIFI_RETRY_INTERVAL_MS / 1000}s")
+            updateNotification("Waiting for $waitLabel connection…")
             delay(Constants.WIFI_RETRY_INTERVAL_MS)
         }
-        Log.i(Constants.TAG, "UpdateService: Wi-Fi connected (${wifiMonitor.connectedSsid()})")
-        updateNotification("Wi-Fi connected — checking for updates…")
+        val connType = wifiMonitor.connectionType()
+        Log.i(Constants.TAG, "UpdateService: connected via $connType (${wifiMonitor.connectedSsid() ?: "N/A"})")
+        updateNotification("$connType connected — checking for updates…")
 
         // ── Step 2: Fetch version info from server ────────────────────────
         val versionInfo = fetchVersionInfo()
@@ -145,20 +164,36 @@ class UpdateService : Service() {
             "UpdateService: update needed (installed=$installedVersion, " +
                     "server=${versionInfo.versionCode}) — downloading APK…")
         updateNotification("Downloading update (v${versionInfo.versionCode})…")
+        broadcastDownloadStatus("started", 0, 0, 0)
 
         // ── Step 4: Download APK ─────────────────────────────────────────
-        val downloadResult = apkDownloader.download(versionInfo.apkUrl, versionInfo.sha256)
+        // On smartphones, allow mobile data downloads too
+        val downloadResult = apkDownloader.download(
+            versionInfo.apkUrl,
+            versionInfo.sha256,
+            wifiOnly = isFactoryMode
+        ) { bytesDownloaded, totalBytes, percent ->
+            // Broadcast progress to MainActivity UI
+            broadcastDownloadStatus("downloading", percent, bytesDownloaded, totalBytes)
+
+            // Also update notification with progress
+            if (percent >= 0 && percent % 10 == 0) {
+                updateNotification("Downloading… $percent%")
+            }
+        }
 
         when (downloadResult) {
             is ApkDownloader.DownloadResult.Failure -> {
                 Log.e(Constants.TAG, "UpdateService: download failed: ${downloadResult.reason}")
                 updateNotification("Download failed — will retry")
+                broadcastDownloadStatus("failed", 0, 0, 0)
                 scheduleRetry()
                 return
             }
             is ApkDownloader.DownloadResult.Success -> {
                 Log.i(Constants.TAG, "UpdateService: download success — launching installer")
                 updateNotification("Installing update…")
+                broadcastDownloadStatus("done", 100, 0, 0)
 
                 // ── Step 5: Install APK ───────────────────────────────────
                 val installed = apkInstaller.install(downloadResult.file)
@@ -170,11 +205,20 @@ class UpdateService : Service() {
                     return
                 }
 
+                // On smartphones, show a high-priority notification so the
+                // user can easily tap to complete installation if they
+                // missed the install dialog.
+                if (!isFactoryMode) {
+                    showInstallNotification(downloadResult.file)
+                }
+
                 // ── Step 6: Auto-delete APK after install ─────────────────
                 // Small delay so the installer has time to copy the file
                 // before we delete the source.
-                delay(10_000L)
+                // Give more time on smartphones since user must tap manually.
+                delay(if (isFactoryMode) 10_000L else 120_000L)
                 apkDownloader.deleteApkIfExists()
+                dismissInstallNotification()
                 Log.i(Constants.TAG, "UpdateService: APK deleted after install")
 
                 updateNotification("Update complete")
@@ -325,6 +369,98 @@ class UpdateService : Service() {
     private fun updateNotification(status: String) {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.notify(Constants.NOTIFICATION_ID, buildNotification(status))
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // Smartphone: "Tap to install" notification
+    // ──────────────────────────────────────────────────────────────────────
+
+    /**
+     * Creates a separate high-importance notification channel for install
+     * prompts on smartphones. This ensures the user sees the notification
+     * even if the agent service channel is set to low priority.
+     */
+    private fun createInstallNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                Constants.INSTALL_CHANNEL_ID,
+                "Translation App Install",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Tap to install the Translation App update"
+                setShowBadge(true)
+            }
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.createNotificationChannel(channel)
+        }
+    }
+
+    /**
+     * Shows a high-priority, tappable notification that opens the APK
+     * installer when the user taps it. Used on normal smartphones where
+     * silent install is not available.
+     */
+    private fun showInstallNotification(apkFile: java.io.File) {
+        try {
+            val apkUri: Uri = FileProvider.getUriForFile(
+                this,
+                "${packageName}.fileprovider",
+                apkFile
+            )
+            val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(apkUri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            val pendingIntent = PendingIntent.getActivity(
+                this, 0, installIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val notification = NotificationCompat.Builder(this, Constants.INSTALL_CHANNEL_ID)
+                .setContentTitle("Translation App Ready")
+                .setContentText("Tap to install the Translation App")
+                .setSmallIcon(android.R.drawable.stat_sys_download_done)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setAutoCancel(true)
+                .setContentIntent(pendingIntent)
+                .build()
+
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.notify(Constants.INSTALL_NOTIFICATION_ID, notification)
+            Log.i(Constants.TAG, "UpdateService: 'Tap to install' notification shown")
+        } catch (e: Exception) {
+            Log.e(Constants.TAG, "UpdateService: failed to show install notification: ${e.message}")
+        }
+    }
+
+    private fun dismissInstallNotification() {
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.cancel(Constants.INSTALL_NOTIFICATION_ID)
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // Download progress broadcast → MainActivity
+    // ──────────────────────────────────────────────────────────────────────
+
+    /**
+     * Sends a local broadcast with download progress that [MainActivity]
+     * can receive to update the on-screen progress bar.
+     *
+     * @param status  One of "started", "downloading", "done", "failed".
+     * @param percent 0–100 (or -1 when total size is unknown).
+     */
+    private fun broadcastDownloadStatus(
+        status: String, percent: Int, bytesDownloaded: Long, totalBytes: Long
+    ) {
+        val intent = Intent(Constants.ACTION_DOWNLOAD_PROGRESS).apply {
+            setPackage(packageName)  // restrict to this app only
+            putExtra(Constants.EXTRA_PROGRESS_STATUS, status)
+            putExtra(Constants.EXTRA_PROGRESS_PERCENT, percent)
+            putExtra(Constants.EXTRA_PROGRESS_BYTES, bytesDownloaded)
+            putExtra(Constants.EXTRA_PROGRESS_TOTAL, totalBytes)
+        }
+        sendBroadcast(intent)
     }
 
     // ──────────────────────────────────────────────────────────────────────

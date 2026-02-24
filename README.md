@@ -1,6 +1,20 @@
-# Bootstrap Agent — Android 8.1 (API 27)
+# Bootstrap Agent — Android 8.0+ (API 26+)
 
-Production-ready embedded-device agent that automatically keeps the **Translation App** (`com.client.translation`) up-to-date after every device boot.
+Production-ready agent that automatically keeps the **Translation App** (`com.client.translation`) up-to-date after every device boot. Works on both **factory embedded devices** and **normal smartphones**.
+
+---
+
+## Deployment Modes
+
+The app **auto-detects** its deployment mode — no configuration needed:
+
+| | Factory / Embedded Device | Normal Smartphone |
+|---|---|---|
+| **Install method** | ADB on production line | Sideload APK or share via link |
+| **Network** | Wi-Fi only | Wi-Fi + Mobile Data |
+| **Install flow** | Silent (no user interaction) | User taps "Install" notification |
+| **Battery optimization** | Not needed | Auto-requests exemption |
+| **Detection** | System app flag (`/system/priv-app`) | Regular app flag |
 
 ---
 
@@ -10,10 +24,10 @@ Production-ready embedded-device agent that automatically keeps the **Translatio
 com.bootstrap.agent
 ├── Constants.kt        — All configuration constants (URLs, timeouts, package names)
 ├── BootReceiver.kt     — BroadcastReceiver: listens for BOOT_COMPLETED, starts UpdateService
-├── WifiMonitor.kt      — ConnectivityManager wrapper: checks Wi-Fi state
+├── WifiMonitor.kt      — ConnectivityManager wrapper: checks Wi-Fi / any-network state
 ├── UpdateService.kt    — Foreground Service: orchestrates the full update workflow
 ├── ApkDownloader.kt    — DownloadManager wrapper: downloads + SHA-256 verifies APK
-├── ApkInstaller.kt     — FileProvider + ACTION_VIEW: launches system package installer
+├── ApkInstaller.kt     — FileProvider + ACTION_VIEW / PackageInstaller: installs APK
 └── MainActivity.kt     — Minimal diagnostic screen; starts service manually if needed
 
 res/
@@ -98,6 +112,51 @@ const val TARGET_PACKAGE = "com.client.translation"
 | `REQUEST_INSTALL_PACKAGES` | Install downloaded APK |
 | `WRITE_EXTERNAL_STORAGE` | Save APK to Downloads directory |
 | `FOREGROUND_SERVICE` | Keep service alive on API 26+ |
+| `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | Survive Doze on smartphones |
+
+---
+
+## Smartphone Installation (Sideload)
+
+For installing on a **normal smartphone** (not factory-produced):
+
+### 1 — Build or obtain the APK
+
+Build with `./gradlew assembleRelease` or use a pre-built APK.
+
+### 2 — Transfer and install
+
+Send the APK to the phone (via USB, email, link, etc.) and tap to install.
+Android will prompt you to allow "Install from unknown sources" — tap **Allow**.
+
+### 3 — Open Bootstrap Agent once
+
+Launch the app from the app drawer. It will:
+- Ask to **disable battery optimization** — tap **Allow** (important!)
+- Ask to **allow installing unknown apps** — tap **Allow**
+- Start the update service automatically
+
+### 4 — Done
+
+The Translation App will download and install automatically when the phone
+has internet. On smartphones, a **"Tap to install"** notification appears
+when the download is ready — the user taps it to complete installation.
+
+After the first setup, the agent runs automatically on every reboot.
+No further user action is needed.
+
+### Smartphone vs Factory behaviour
+
+The app **auto-detects** which mode to use based on whether it's installed
+as a system app. No code changes or build variants are needed — the same
+APK works for both.
+
+---
+
+## Factory Installation (ADB)
+
+See [FACTORY_INSTALLATION_STEPS.md](FACTORY_INSTALLATION_STEPS.md) for
+step-by-step instructions for the production line.
 
 ---
 
